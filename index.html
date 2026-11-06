@@ -113,7 +113,7 @@
                 Tx<span>Simulator</span>
             </div>
             <div style="display: flex; gap: 12px; align-items: center;">
-                <span id="network-badge" class="status-badge hidden">BOT Chain</span>
+                <span id="network-badge" class="status-badge status-success hidden">BOT Chain 677</span>
                 <button id="btn-connect" class="btn btn-primary" onclick="connectWallet()">Connect Wallet</button>
                 <div id="wallet-info" class="hidden mono" style="background: var(--bg-panel); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);"></div>
             </div>
@@ -126,7 +126,7 @@
             <h1>Know What Happens Before You Sign.</h1>
             <p>The ultimate transaction simulation and security platform natively built for BOT Chain. Inspect calldata, estimate gas, and detect malicious intents.</p>
             <div class="hero-actions">
-                <button class="btn btn-primary" onclick="connectWallet()">Start Simulating</button>
+                <button class="btn btn-primary" onclick="openApp()">Start Simulating</button>
                 <a href="#features" class="btn btn-outline" style="display: inline-block; line-height: 20px;">Explore Features</a>
             </div>
         </section>
@@ -146,7 +146,7 @@
             </div>
             <div class="feature-card">
                 <h3>⛓️ On-Chain Records</h3>
-                <p class="text-muted">Store simulation profiles and transaction histories directly on BOT Chain using our native Registry contracts.</p>
+                <p class="text-muted">Save your profile and simulation reports to the TxSimulator Registry on BOT Chain mainnet.</p>
             </div>
         </section>
 
@@ -177,12 +177,12 @@
                     </div>
                     
                     <div class="form-group">
-                        <label>From (Connected Wallet)</label>
-                        <input type="text" id="tx-from" class="form-control" disabled>
+                        <label>From (any address — defaults to your wallet)</label>
+                        <input type="text" id="tx-from" class="form-control" placeholder="0x...">
                     </div>
                     <div class="form-group">
                         <label>To (Contract / Recipient)</label>
-                        <input type="text" id="tx-to" class="form-control" placeholder="0x..." value="0x0000000000000000000000000000000000000000">
+                        <input type="text" id="tx-to" class="form-control" placeholder="0x...">
                     </div>
                     <div class="form-group">
                         <label>Value (BOT)</label>
@@ -198,15 +198,18 @@
                     </div>
                     
                     <button class="btn btn-primary" style="width: 100%;" onclick="runSimulation()">Simulate Transaction</button>
-                    <p class="text-muted" style="font-size: 0.75rem; margin-top: 12px; text-align: center;">Never signs or broadcasts the payload.</p>
+                    <p class="text-muted" style="font-size: 0.75rem; margin-top: 12px; text-align: center;">Runs on BOT Chain mainnet state. Never signs or broadcasts the payload, and needs no wallet.</p>
                 </div>
 
                 <div class="panel">
                     <div class="panel-header">
                         <h3>On-Chain Profiles</h3>
                     </div>
-                    <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px;">Sync your simulation history and preferences directly to BOT Chain.</p>
-                    <button class="btn btn-outline btn-sm" style="width: 100%;" onclick="alert('Profile sync requires deploying the ProfileStorage contract.')">Sync Profile to Chain</button>
+                    <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 12px;">Saved publicly to the TxSimulator Registry on BOT Chain. Connect a wallet to use it.</p>
+                    <div class="form-group"><label>Display name</label><input type="text" id="profile-name" class="form-control" maxlength="64"></div>
+                    <div class="form-group"><label>Preferences (JSON)</label><textarea id="profile-prefs" class="form-control" style="min-height: 60px;" placeholder='{"defaultGasLimit": 300000}'></textarea></div>
+                    <button class="btn btn-outline btn-sm" style="width: 100%;" onclick="saveProfile(this)">Save Profile to Chain</button>
+                    <p id="profile-status" class="text-muted" style="font-size: 0.75rem; margin-top: 8px;">Connect your wallet to load your profile.</p>
                 </div>
             </div>
 
@@ -214,10 +217,10 @@
             <div>
                 <div class="panel" style="min-height: 500px;">
                     <div class="tabs">
-                        <div class="tab active" onclick="switchTab('tab-results')">Simulation Results</div>
-                        <div class="tab" onclick="switchTab('tab-security')">Security Analysis</div>
-                        <div class="tab" onclick="switchTab('tab-tools')">Dev Tools & ABI</div>
-                        <div class="tab" onclick="switchTab('tab-solidity')">Test Contracts</div>
+                        <div class="tab active" data-tab="tab-results" onclick="switchTab('tab-results')">Simulation Results</div>
+                        <div class="tab" data-tab="tab-security" onclick="switchTab('tab-security')">Security Analysis</div>
+                        <div class="tab" data-tab="tab-tools" onclick="switchTab('tab-tools')">Dev Tools & ABI</div>
+                        <div class="tab" data-tab="tab-solidity" onclick="switchTab('tab-solidity')">Test Contracts</div>
                     </div>
 
                     <!-- Tab: Results -->
@@ -251,6 +254,17 @@
                             <div class="result-box mono" id="res-events" style="font-size: 0.85rem;">
                                 Analyzing calldata heuristics...
                             </div>
+
+                            <div id="save-sim" class="hidden mt-4">
+                                <h3>Save to BOT Chain</h3>
+                                <div class="flex gap-2 mt-4">
+                                    <input type="text" id="sim-remarks" class="form-control" maxlength="140" placeholder="Remarks (optional, public)">
+                                    <button class="btn btn-outline btn-sm" style="white-space: nowrap;" onclick="saveSimulation(this)">Save Simulation</button>
+                                </div>
+                            </div>
+
+                            <h3 class="mt-4">My Saved Simulations</h3>
+                            <ul id="history-list" class="warning-list mt-4"><li style="border-left-color: var(--border); background: none;">Connect your wallet to see saved simulations.</li></ul>
                         </div>
                     </div>
 
@@ -285,47 +299,39 @@
                             <h3>On-Chain Architecture & Testing</h3>
                         </div>
                         <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 16px;">
-                            Deploy these contracts to BOT Chain to test simulation capabilities or to store user profiles permanently.
+                            The registry below is live on BOT Chain mainnet. VulnerableTest is a deliberately broken example for practising simulations — never deploy it with real funds.
                         </p>
                         
                         <div class="form-group">
-                            <label>TxSimulatorStorage.sol (On-Chain Records)</label>
+                            <label>TxSimulatorRegistry.sol — deployed at <a id="registry-link" class="mono" target="_blank" rel="noopener"></a></label>
                             <textarea class="form-control mono" style="min-height: 200px; font-size: 0.8rem;" readonly>
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-contract TxSimulatorStorage {
-    struct Profile {
-        string aliasName;
-        bool riskToleranceHigh;
+contract TxSimulatorRegistry {
+    struct UserProfile {
+        string displayName;
+        string preferencesJSON;
+        uint256 createdAt;
     }
-    
-    struct SimRecord {
-        address target;
-        bytes data;
-        string remarks;
+
+    struct SimulationRecord {
+        address contractTarget;
+        bytes4 functionSelector;
+        string simulationReportURI;
+        uint256 estimatedGas;
         uint256 timestamp;
     }
 
-    mapping(address => Profile) public profiles;
-    mapping(address => SimRecord[]) public savedSimulations;
+    mapping(address =&gt; UserProfile) public profiles;
+    mapping(address =&gt; SimulationRecord[]) public userSimulations;
 
-    event ProfileUpdated(address indexed user, string aliasName);
-    event SimulationSaved(address indexed user, address target);
+    event ProfileUpdated(address indexed user, string displayName);
+    event SimulationSaved(address indexed user, address indexed target, bytes4 selector);
 
-    function updateProfile(string calldata _alias, bool _riskHigh) external {
-        profiles[msg.sender] = Profile(_alias, _riskHigh);
-        emit ProfileUpdated(msg.sender, _alias);
-    }
-
-    function saveSimulation(address _target, bytes calldata _data, string calldata _remarks) external {
-        savedSimulations[msg.sender].push(SimRecord(_target, _data, _remarks, block.timestamp));
-        emit SimulationSaved(msg.sender, _target);
-    }
-    
-    function getSimulations(address _user) external view returns (SimRecord[] memory) {
-        return savedSimulations[_user];
-    }
+    function updateProfile(string calldata _displayName, string calldata _preferencesJSON) external;
+    function saveSimulation(address _target, bytes4 _selector, string calldata _reportURI, uint256 _estimatedGas) external;
+    function getUserSimulations(address _user) external view returns (SimulationRecord[] memory);
 }</textarea>
                         </div>
 
@@ -366,219 +372,306 @@ contract VulnerableTest {
         <div class="container">
             <div class="footer-links">
                 <a href="https://botchain.ai" target="_blank">BOT Chain Website</a>
-                <a href="https://scan.botchain.ai" target="_blank">BOT Chain Explorer</a>
+                <a href="https://scan.botchain.ai/address/0xDc46ff419d41192235FC3da5d739dDF063cFFb85" target="_blank" rel="noopener">Registry Contract</a>
                 <a href="#">GitHub Repository</a>
                 <a href="#">Documentation</a>
             </div>
-            <p>&copy; 2026 TxSimulator on BOT Chain. All permanent app records stored on-chain.</p>
+            <p>&copy; 2026 TxSimulator on BOT Chain Mainnet (Chain ID 677).</p>
         </div>
     </footer>
 
     <script>
+        // ═══════ BOT Chain mainnet ═══════
+        const REGISTRY = '0xDc46ff419d41192235FC3da5d739dDF063cFFb85';
+        const CHAIN_ID = 677, CHAIN_HEX = '0x2a5', RPC = 'https://rpc.botchain.ai', EXPLORER = 'https://scan.botchain.ai';
+        const REG_ABI = [
+            'function profiles(address) view returns (string displayName, string preferencesJSON, uint256 createdAt)',
+            'function getUserSimulations(address _user) view returns (tuple(address contractTarget, bytes4 functionSelector, string simulationReportURI, uint256 estimatedGas, uint256 timestamp)[])',
+            'function updateProfile(string _displayName, string _preferencesJSON)',
+            'function saveSimulation(address _target, bytes4 _selector, string _reportURI, uint256 _estimatedGas)'
+        ];
+        // Simulations always run against BOT Chain mainnet, whatever network the wallet is on
+        const readProvider = new ethers.providers.StaticJsonRpcProvider(RPC, { chainId: CHAIN_ID, name: 'botchain' });
+        const registry = new ethers.Contract(REGISTRY, REG_ABI, readProvider);
+
         // App State
-        let provider;
-        let signer;
-        let userAddress;
-        
-        // Setup simple UI tabbing
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
+        let userAddress = null, lastSim = null, txBusy = false;
+
+        const $ = id => document.getElementById(id);
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const withTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+        const MAX_HALF = ethers.BigNumber.from(2).pow(255);
+
+        // Pull a readable revert reason out of an RPC error (Error(string), Panic(uint256) or raw message)
+        function revertReason(e) {
+            let data = e && (e.data || (e.error && (e.error.data || (e.error.error && e.error.error.data))));
+            if (data && typeof data === 'object') data = data.data;
+            if (typeof data === 'string' && data.startsWith('0x08c379a0')) {
+                try { return ethers.utils.defaultAbiCoder.decode(['string'], '0x' + data.slice(10))[0]; } catch (x) {}
+            }
+            if (typeof data === 'string' && data.startsWith('0x4e487b71')) {
+                try { return 'Panic code 0x' + ethers.utils.defaultAbiCoder.decode(['uint256'], '0x' + data.slice(10))[0].toHexString().slice(2); } catch (x) {}
+            }
+            const m = (e && (e.reason || (e.error && e.error.message) || e.message)) || String(e);
+            const r = m.match(/reverted(?: with reason string)?:?\s*'?"?([^"'\n]+)/i);
+            return r ? r[1].trim() : (typeof data === 'string' && data.length > 2 ? 'Custom error ' + data.slice(0, 10) : m);
         }
 
-        // Web3 Connection Logic
-        async function connectWallet() {
-            if (typeof window.ethereum !== 'undefined') {
-                try {
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                    signer = provider.getSigner();
-                    userAddress = await signer.getAddress();
-                    
-                    // Validate network (Request switch to a hypothetical BOT chain ID if needed)
-                    // For demonstration, we just log current network and proceed.
-                    const network = await provider.getNetwork();
-                    console.log("Connected to Chain ID:", network.chainId);
+        // Setup simple UI tabbing
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === tabId));
+        }
 
-                    // Update UI
-                    document.getElementById('landing-view').style.display = 'none';
-                    document.getElementById('app-view').style.display = 'block';
-                    document.getElementById('btn-connect').classList.add('hidden');
-                    document.getElementById('wallet-info').classList.remove('hidden');
-                    document.getElementById('network-badge').classList.remove('hidden');
-                    document.getElementById('wallet-info').innerText = userAddress.substring(0, 6) + '...' + userAddress.substring(38);
-                    document.getElementById('tx-from').value = userAddress;
+        function openApp() {
+            $('landing-view').style.display = 'none';
+            $('app-view').style.display = 'block';
+        }
 
-                } catch (error) {
-                    console.error("Connection failed", error);
-                    alert("Failed to connect wallet: " + error.message);
-                }
-            } else {
-                alert("Please install MetaMask or a compatible Web3 wallet to use TxSimulator.");
+        async function ensureChain() {
+            if (parseInt(await window.ethereum.request({ method: 'eth_chainId' }), 16) === CHAIN_ID) return;
+            try {
+                await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_HEX }] });
+            } catch (e) {
+                if (e.code === 4902 || e.code === -32603 || /unrecognized|not been added/i.test(e.message || '')) {
+                    await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: CHAIN_HEX, chainName: 'BOT Chain Mainnet', nativeCurrency: { name: 'BOT', symbol: 'BOT', decimals: 18 }, rpcUrls: [RPC], blockExplorerUrls: [EXPLORER] }] });
+                } else throw e;
             }
         }
 
-        // Simulation Logic
-        async function runSimulation() {
-            if (!provider) { alert("Connect wallet first!"); return; }
+        // Web3 Connection Logic (only needed to save profiles/simulations on-chain)
+        async function connectWallet(silent) {
+            if (typeof window.ethereum === 'undefined') {
+                if (!silent) alert("Please install MetaMask or a compatible Web3 wallet. You can still simulate without one.");
+                if (!silent) openApp();
+                return;
+            }
+            try {
+                const accounts = await withTimeout(
+                    window.ethereum.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' }),
+                    silent ? 5000 : 60000, 'Wallet did not respond. Open it from the toolbar and clear pending requests.');
+                if (!accounts || !accounts.length) return;
+                userAddress = ethers.utils.getAddress(accounts[0]);
 
-            const to = document.getElementById('tx-to').value;
-            const valueEth = document.getElementById('tx-value').value || "0";
-            const data = document.getElementById('tx-data').value || "0x";
-            const gasLimitInput = document.getElementById('tx-gaslimit').value;
+                openApp();
+                $('btn-connect').classList.add('hidden');
+                $('wallet-info').classList.remove('hidden');
+                $('network-badge').classList.remove('hidden');
+                $('wallet-info').innerText = userAddress.substring(0, 6) + '...' + userAddress.substring(38);
+                if (!$('tx-from').value) $('tx-from').value = userAddress;
+                if (window.ethereum.on && !connectWallet.l) { connectWallet.l = 1; window.ethereum.on('accountsChanged', () => location.reload()); }
+                loadProfile();
+                if (!silent) withTimeout(ensureChain(), 60000, 'switch').catch(() => alert('Switch your wallet to BOT Chain (677) before saving to the chain.'));
+            } catch (error) {
+                console.error("Connection failed", error);
+                if (!silent) alert("Failed to connect wallet: " + error.message);
+            }
+        }
+
+        // Send a registry transaction: estimate on BOT Chain first (shows the real revert reason), then the wallet signs
+        async function sendRegistryTx(fn, args, btn) {
+            if (!userAddress) { await connectWallet(); if (!userAddress) return false; }
+            if (txBusy) { alert('Another transaction is still pending.'); return false; }
+            txBusy = true;
+            const label = btn ? btn.innerText : '';
+            try {
+                if (btn) { btn.disabled = true; btn.innerText = 'Confirm in wallet…'; }
+                await withTimeout(ensureChain(), 60000, 'Approve the switch to BOT Chain in your wallet');
+                const data = registry.interface.encodeFunctionData(fn, args);
+                let gas;
+                try { gas = await readProvider.estimateGas({ from: userAddress, to: REGISTRY, data }); }
+                catch (e) { throw new Error(revertReason(e)); }
+                const hash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: userAddress, to: REGISTRY, data, gas: gas.mul(12).div(10).toHexString() }] });
+                if (btn) btn.innerText = 'Confirming…';
+                const r = await readProvider.waitForTransaction(hash, 1, 180000);
+                if (!r || r.status !== 1) throw new Error('Not confirmed. Check ' + EXPLORER + '/tx/' + hash);
+                return true;
+            } catch (e) {
+                alert('Transaction failed: ' + revertReason(e));
+                return false;
+            } finally {
+                txBusy = false;
+                if (btn) { btn.disabled = false; btn.innerText = label; }
+            }
+        }
+
+        // ═══════ On-chain profile + saved simulations ═══════
+        async function loadProfile() {
+            if (!userAddress) return;
+            try {
+                const [p, sims] = await Promise.all([registry.profiles(userAddress), registry.getUserSimulations(userAddress)]);
+                $('profile-name').value = p.displayName;
+                $('profile-prefs').value = p.preferencesJSON;
+                try { const prefs = JSON.parse(p.preferencesJSON || '{}'); if (prefs.defaultGasLimit && !$('tx-gaslimit').value) $('tx-gaslimit').value = prefs.defaultGasLimit; } catch (x) {}
+                $('profile-status').innerText = p.createdAt.gt(0) ? 'Profile on chain since ' + new Date(p.createdAt.toNumber() * 1000).toLocaleDateString() : 'No profile saved yet.';
+                $('history-list').innerHTML = sims.length ? sims.slice().reverse().map(s => `<li style="border-left-color: var(--accent); background-color: rgba(59,130,246,0.1);">
+                    <span class="mono">${esc(s.functionSelector)}</span> → <a class="mono" href="${EXPLORER}/address/${esc(s.contractTarget)}" target="_blank" rel="noopener">${esc(s.contractTarget.slice(0, 10))}…</a>
+                    · gas ${esc(s.estimatedGas.toString())} · ${new Date(s.timestamp.toNumber() * 1000).toLocaleString()}<br><span class="text-muted">${esc(s.simulationReportURI)}</span></li>`).join('')
+                    : '<li style="border-left-color: var(--border); background: none;">No saved simulations yet.</li>';
+            } catch (e) { $('profile-status').innerText = 'Could not reach BOT Chain: ' + revertReason(e); }
+        }
+
+        async function saveProfile(btn) {
+            const name = $('profile-name').value.trim(), prefs = $('profile-prefs').value.trim() || '{}';
+            if (!name) return alert('Enter a display name.');
+            try { JSON.parse(prefs); } catch (x) { return alert('Preferences must be valid JSON, e.g. {"defaultGasLimit": 300000}'); }
+            if (await sendRegistryTx('updateProfile', [name, prefs], btn)) loadProfile();
+        }
+
+        async function saveSimulation(btn) {
+            if (!lastSim) return alert('Run a simulation first.');
+            const remarks = $('sim-remarks').value.trim();
+            const report = JSON.stringify({ ok: lastSim.ok, value: lastSim.value, result: lastSim.result.slice(0, 120), note: remarks || undefined });
+            if (await sendRegistryTx('saveSimulation', [lastSim.to, lastSim.selector, report, lastSim.gas], btn)) { $('sim-remarks').value = ''; loadProfile(); }
+        }
+
+        // ═══════ Simulation Logic (eth_call + eth_estimateGas on BOT Chain mainnet; never signs) ═══════
+        async function runSimulation() {
+            const from = $('tx-from').value.trim() || userAddress || ethers.constants.AddressZero;
+            const to = $('tx-to').value.trim();
+            const valueEth = $('tx-value').value || "0";
+            const data = ($('tx-data').value || "0x").trim();
+            const gasLimitInput = $('tx-gaslimit').value;
+
+            if (!ethers.utils.isAddress(from)) return alert('"From" is not a valid address.');
+            if (!ethers.utils.isAddress(to)) return alert('"To" is not a valid address.');
+            if (!/^0x([0-9a-fA-F]{2})*$/.test(data)) return alert('Calldata must be hex starting with 0x.');
+            let value;
+            try { value = ethers.utils.parseEther(valueEth); } catch (x) { return alert('Value is not a valid BOT amount.'); }
 
             // UI Reset
-            document.getElementById('sim-empty').classList.add('hidden');
-            document.getElementById('sim-results').classList.remove('hidden');
-            const statusBadge = document.getElementById('res-status');
-            const resGas = document.getElementById('res-gas');
-            const resFee = document.getElementById('res-fee');
-            const resData = document.getElementById('res-data');
-            const resEvents = document.getElementById('res-events');
-            
+            $('sim-empty').classList.add('hidden');
+            $('sim-results').classList.remove('hidden');
+            $('save-sim').classList.add('hidden');
+            const statusBadge = $('res-status'), resGas = $('res-gas'), resFee = $('res-fee'), resData = $('res-data');
             statusBadge.className = 'status-badge status-warning';
             statusBadge.innerText = 'Simulating...';
             resGas.innerText = 'Loading...';
             resFee.innerText = 'Loading...';
             resData.innerText = 'Loading...';
+            switchTab('tab-results');
 
-            let tx = {
-                from: userAddress,
-                to: to,
-                value: ethers.utils.parseEther(valueEth),
-                data: data
-            };
+            const tx = { from, to, value, data };
+            if (gasLimitInput) tx.gasLimit = ethers.BigNumber.from(gasLimitInput);
+            let ok = false, result = '', gas = ethers.BigNumber.from(0);
 
             try {
+                const code = await readProvider.getCode(to);
+                tx.isContract = code !== '0x';
                 // 1. Estimate Gas
-                let estimatedGas;
                 try {
-                    estimatedGas = await provider.estimateGas(tx);
-                    resGas.innerText = estimatedGas.toString();
-                    
-                    const gasPrice = await provider.getGasPrice();
-                    const feeInWei = estimatedGas.mul(gasPrice);
-                    resFee.innerText = ethers.utils.formatEther(feeInWei) + " BOT";
+                    gas = await readProvider.estimateGas({ from, to, value, data });
+                    resGas.innerText = gas.toString();
+                    const gasPrice = await readProvider.getGasPrice();
+                    resFee.innerText = ethers.utils.formatEther(gas.mul(gasPrice)) + " BOT";
                 } catch (gasErr) {
                     resGas.innerText = "Reverted during estimation";
                     resFee.innerText = "-";
                     throw gasErr;
                 }
-
-                // 2. eth_call (Executes without state modification)
-                const result = await provider.call(tx);
-                
+                // 2. eth_call (executes without state modification)
+                result = await readProvider.call({ from, to, value, data, gasLimit: tx.gasLimit });
+                ok = true;
                 statusBadge.className = 'status-badge status-success';
                 statusBadge.innerText = 'Execution Success';
                 resData.innerText = result === "0x" ? "0x (No Return Data)" : result;
-
                 analyzeSecurity(tx, true, null);
-
             } catch (error) {
                 console.error("Simulation Reverted:", error);
+                result = revertReason(error);
                 statusBadge.className = 'status-badge status-danger';
                 statusBadge.innerText = 'Transaction Reverted';
-                
-                // Try to extract revert reason
-                let revertReason = "Unknown Revert";
-                if (error.data) revertReason = error.data;
-                else if (error.message) revertReason = error.message;
-
-                resData.innerText = revertReason;
-                analyzeSecurity(tx, false, revertReason);
+                resData.innerText = result;
+                analyzeSecurity(tx, false, result);
             }
-            
+
             // Basic heuristic state analysis
             analyzeStateChanges(tx);
+            lastSim = { to, selector: data.length >= 10 ? data.slice(0, 10) : '0x00000000', gas, ok, value: ethers.utils.formatEther(value), result };
+            $('save-sim').classList.remove('hidden');
         }
 
         // Security Analysis Logic
         function analyzeSecurity(tx, success, errorMsg) {
-            const warningsList = document.getElementById('security-warnings');
-            warningsList.innerHTML = '';
-            let warnings = [];
+            const warningsList = $('security-warnings');
+            const warnings = [];
+            const d = (tx.data || '0x').toLowerCase();
 
             if (!success) {
-                warnings.push(`<li><strong>Reverting Transaction:</strong> The transaction is guaranteed to fail and consume gas. Reason: ${errorMsg}</li>`);
+                warnings.push(`<li><strong>Reverting Transaction:</strong> This transaction would fail and still cost gas. Reason: ${esc(errorMsg)}</li>`);
             }
-
-            // Check for ERC20 Infinite Approve: 0x095ea7b3 + max uint256
-            if (tx.data && tx.data.toLowerCase().includes('095ea7b3') && tx.data.toLowerCase().includes('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')) {
-                warnings.push(`<li><strong>Critical Warning - Unlimited Approval:</strong> This transaction approves a smart contract to spend an unlimited amount of your tokens. Only do this for highly trusted protocols.</li>`);
+            // ERC-20 approve(spender, amount) with a huge amount
+            if (d.startsWith('0x095ea7b3') && d.length >= 138) {
+                try {
+                    const [spender, amount] = ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], '0x' + d.slice(10));
+                    if (amount.gte(MAX_HALF)) warnings.push(`<li><strong>Critical Warning - Unlimited Approval:</strong> Approves ${esc(spender)} to spend an unlimited amount of this token. Only do this for highly trusted protocols.</li>`);
+                } catch (x) {}
             }
-            
-            // Check value transfer
+            // setApprovalForAll(operator, true)
+            if (d.startsWith('0xa22cb465') && d.endsWith('1')) {
+                warnings.push(`<li><strong>Critical Warning - Approval For All:</strong> Gives an operator control of every NFT you hold in this collection.</li>`);
+            }
+            // Value transfer
             if (tx.value && tx.value.gt(0)) {
-                warnings.push(`<li style="border-left-color: var(--warning); background-color: rgba(245, 158, 11, 0.1);"><strong>Native Value Transfer:</strong> You are transferring ${ethers.utils.formatEther(tx.value)} BOT natively to the destination address.</li>`);
+                warnings.push(`<li style="border-left-color: var(--warning); background-color: rgba(245, 158, 11, 0.1);"><strong>Native Value Transfer:</strong> You are sending ${esc(ethers.utils.formatEther(tx.value))} BOT to the destination address.</li>`);
             }
-            
-            if (tx.to && tx.to.toLowerCase() === "0x0000000000000000000000000000000000000000" && tx.data === "0x") {
-                warnings.push(`<li><strong>Burn Address:</strong> You are sending assets directly to the zero address. They will be permanently lost.</li>`);
+            if (tx.to && tx.to.toLowerCase() === ethers.constants.AddressZero && tx.value && tx.value.gt(0)) {
+                warnings.push(`<li><strong>Burn Address:</strong> You are sending BOT to the zero address. It will be permanently lost.</li>`);
+            }
+            if (d !== '0x' && tx.isContract === false) {
+                warnings.push(`<li style="border-left-color: var(--warning); background-color: rgba(245, 158, 11, 0.1);"><strong>No contract at target:</strong> Calldata is sent to an address with no code, so nothing will execute.</li>`);
             }
 
-            if (warnings.length === 0) {
-                warningsList.innerHTML = `<li style="border-left-color: var(--success); background-color: rgba(16, 185, 129, 0.1);">No critical heuristic warnings detected. Always verify contract addresses manually.</li>`;
-            } else {
-                warningsList.innerHTML = warnings.join('');
-            }
-            
-            // Switch to security tab if there are critical issues
-            if (warnings.length > 0 && !success) {
-                switchTab('tab-security');
-            }
+            warningsList.innerHTML = warnings.length ? warnings.join('')
+                : `<li style="border-left-color: var(--success); background-color: rgba(16, 185, 129, 0.1);">No critical heuristic warnings detected. Always verify contract addresses manually.</li>`;
+            if (warnings.length > 0 && !success) switchTab('tab-security');
         }
 
-        // Fake State Change Tracing (Heuristics based on Calldata)
+        // Heuristic state-change hints based on calldata
         function analyzeStateChanges(tx) {
-            const resEvents = document.getElementById('res-events');
-            
+            const resEvents = $('res-events');
             if (tx.data === "0x" || !tx.data) {
-                resEvents.innerHTML = tx.value.gt(0) ? `-> Native transfer of ${ethers.utils.formatEther(tx.value)} BOT to ${tx.to}` : "No state changes predicted.";
+                resEvents.innerHTML = tx.value.gt(0) ? `-> Native transfer of ${esc(ethers.utils.formatEther(tx.value))} BOT to ${esc(tx.to)}` : "No state changes predicted.";
                 return;
             }
-
-            const funcSelector = tx.data.substring(0, 10).toLowerCase();
-            let predicted = "";
-
-            if (funcSelector === "0xa9059cbb") {
-                predicted = `-> Potential ERC20 Transfer detected.<br>-> Recipient encoded in calldata.<br>-> Value encoded in calldata.`;
-            } else if (funcSelector === "0x095ea7b3") {
-                predicted = `-> Potential ERC20 Approval detected.<br>-> Spender encoded in calldata.`;
-            } else {
-                predicted = `-> Interaction with unknown function selector ${funcSelector}.<br>-> Accurate state change traces require a BOT Chain Trace Node (e.g., debug_traceCall).`;
-            }
-
-            resEvents.innerHTML = predicted;
+            const sel = tx.data.substring(0, 10).toLowerCase();
+            let predicted;
+            try {
+                if (sel === "0xa9059cbb") {
+                    const [to, amt] = ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], '0x' + tx.data.slice(10));
+                    predicted = `-> ERC-20 transfer of ${esc(amt.toString())} base units<br>-> Recipient ${esc(to)}`;
+                } else if (sel === "0x095ea7b3") {
+                    const [sp, amt] = ethers.utils.defaultAbiCoder.decode(['address', 'uint256'], '0x' + tx.data.slice(10));
+                    predicted = `-> ERC-20 approval<br>-> Spender ${esc(sp)}<br>-> Allowance ${amt.gte(MAX_HALF) ? 'UNLIMITED' : esc(amt.toString()) + ' base units'}`;
+                } else if (sel === "0x23b872dd") {
+                    const [f, t, amt] = ethers.utils.defaultAbiCoder.decode(['address', 'address', 'uint256'], '0x' + tx.data.slice(10));
+                    predicted = `-> ERC-20 transferFrom of ${esc(amt.toString())} base units<br>-> From ${esc(f)}<br>-> To ${esc(t)}`;
+                }
+            } catch (x) {}
+            resEvents.innerHTML = predicted || `-> Call to function selector ${esc(sel)}.<br>-> Paste the contract ABI in Dev Tools to decode it. Full state traces need a trace node (debug_traceCall).`;
         }
 
         // Basic ABI Decoder
         function decodeCalldata() {
-            const abiStr = document.getElementById('dev-abi').value;
-            const data = document.getElementById('tx-data').value;
-            const out = document.getElementById('dev-decode-result');
-
-            if (!abiStr || !data || data === "0x") {
-                out.innerText = "Please provide ABI and valid Calldata in the input tab.";
-                return;
-            }
-
+            const abiStr = $('dev-abi').value;
+            const data = $('tx-data').value;
+            const out = $('dev-decode-result');
+            if (!abiStr || !data || data === "0x") { out.innerText = "Please provide ABI and valid Calldata in the input tab."; return; }
             try {
-                const abi = JSON.parse(abiStr);
-                const iface = new ethers.utils.Interface(abi);
-                const decoded = iface.parseTransaction({ data: data });
-                
+                const iface = new ethers.utils.Interface(JSON.parse(abiStr));
+                const decoded = iface.parseTransaction({ data: data.trim() });
                 let resultStr = `Function: ${decoded.name}\nArgs:\n`;
-                decoded.functionFragment.inputs.forEach((input, index) => {
-                    resultStr += ` - ${input.name} (${input.type}): ${decoded.args[index]}\n`;
-                });
-                
+                decoded.functionFragment.inputs.forEach((input, index) => { resultStr += ` - ${input.name} (${input.type}): ${decoded.args[index]}\n`; });
                 out.innerText = resultStr;
             } catch (err) {
                 out.innerText = "Decoding failed. Ensure ABI matches the calldata signature.\nError: " + err.message;
             }
         }
+
+        // Boot: silent reconnect if the wallet already approved this site
+        $('registry-link').href = EXPLORER + '/address/' + REGISTRY;
+        $('registry-link').textContent = REGISTRY;
+        if (window.ethereum) connectWallet(true);
     </script>
 </body>
 </html>
